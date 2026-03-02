@@ -1,6 +1,6 @@
 # agent-TRIO
 
-![No Doc, No Code](https://github.com/docularxu/agent-TRIO/releases/download/v0.1/no-doc-no-code.jpg)
+![No Doc, No Code](https://github.com/user-attachments/assets/9daa2b38-b6c6-4432-bdec-cd3f2f43594b)
 
 A multi-agent software development framework built on one principle: **No Doc, No Code**.
 
@@ -16,7 +16,7 @@ Three AI agents - **Architect**, **Coder**, and **Reviewer** - collaborate throu
 
 ## Two-Phase Workflow
 
-![Two-Phase Development Flow](https://github.com/docularxu/agent-TRIO/releases/download/v0.1/phase-diagram.png)
+![Two-Phase Development Flow](https://github.com/user-attachments/assets/e02c3b05-0d85-4eba-84fc-b2434868c052)
 
 **Phase 1: Spec Review** - Architect writes the spec, Reviewer challenges it (up to 3 rounds), Boss signs off.
 
@@ -62,7 +62,7 @@ The spec documents (`PROJECT.md` + `docs/*.md` + `tasks-backlog.md`) serve as th
 
 ## Role Interaction
 
-![Role Interaction Diagram](https://github.com/docularxu/agent-TRIO/releases/download/v0.1/roles-diagram.png)
+![Role Interaction Diagram](https://github.com/user-attachments/assets/464004ab-906a-4bbc-978c-a57ab6ff6c51)
 
 ## Origin
 
