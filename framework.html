@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Agent 开发框架设计</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'PingFang SC', sans-serif; background: #0d1117; color: #c9d1d9; padding: 24px; max-width: 1200px; margin: 0 auto; }
+  h1 { color: #58a6ff; font-size: 28px; margin-bottom: 4px; }
+  .subtitle { color: #8b949e; font-size: 13px; margin-bottom: 32px; }
+  h2 { color: #f0883e; font-size: 20px; margin: 40px 0 16px; border-bottom: 1px solid #21262d; padding-bottom: 8px; }
+  h3 { color: #c9d1d9; font-size: 16px; margin: 24px 0 12px; }
+  .mermaid { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px; margin: 16px 0; overflow-x: auto; }
+  .note { color: #8b949e; font-size: 13px; margin: 8px 0 16px; line-height: 1.6; }
+  .decision { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin: 12px 0; }
+  .decision-title { color: #3fb950; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  .decision-body { color: #8b949e; font-size: 13px; line-height: 1.6; }
+  .file-tree { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin: 16px 0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 2; }
+  .file-tree .dir { color: #58a6ff; }
+  .file-tree .file { color: #c9d1d9; }
+  .file-tree .comment { color: #484f58; }
+  .indent { padding-left: 24px; }
+  .indent2 { padding-left: 48px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #30363d; padding: 10px 14px; text-align: left; font-size: 13px; }
+  th { background: #161b22; color: #58a6ff; font-weight: 600; }
+  td { background: #0d1117; }
+</style>
+</head>
+<body>
+
+<p style="color: #8b949e; font-style: italic; font-size: 14px; margin-bottom: 24px; border-left: 3px solid #30363d; padding-left: 12px;">"Perfect is the enemy of good." - Voltaire</p>
+
+<h1>🤖 Multi-Agent 开发框架设计</h1>
+<p class="subtitle">通用开发团队架构 - 与具体项目无关 - Guodong × Jarvis - 2026.3.1</p>
+
+<!-- ==================== 1. 团队角色 ==================== -->
+<h2>1. 团队角色</h2>
+
+<div class="mermaid">
+graph TB
+    U["👤 Guodong<br>老板 - 定需求、Sign-off、最终决策"]
+    J["⚡ Jarvis<br>架构师 - 撰写 spec 文档、编排协调"]
+    C["💻 Coder<br>工程师 - 严格按 spec 写代码和测试"]
+    R["🔍 Reviewer<br>审查员 - P1: 审查 spec / P2: 审查代码"]
+
+    U <-->|直接对话| J
+    U <-->|可直接对话| C
+    U <-->|可直接对话| R
+    J -->|写 spec 文档| C
+    J -->|触发 review| R
+    C <-->|代码↔review意见| R
+
+    style U fill:#8b5cf6,stroke:#a78bfa,color:#fff
+    style J fill:#f0883e,stroke:#f0883e,color:#fff
+    style C fill:#238636,stroke:#3fb950,color:#fff
+    style R fill:#da3633,stroke:#f85149,color:#fff
+</div>
+
+<table>
+  <tr><th>角色</th><th>身份</th><th>核心职责</th><th>实现方式</th></tr>
+  <tr><td>👤 Guodong</td><td>老板</td><td>提需求意图、Sign-off 文档、最终决策</td><td>人类</td></tr>
+  <tr><td>⚡ Jarvis</td><td>架构师/管家</td><td>把需求转化为 spec 文档、任务拆分、编排协调</td><td>OpenClaw main agent</td></tr>
+  <tr><td>💻 Coder</td><td>工程师</td><td>严格按 spec 写代码和测试，不许自由发挥</td><td>OpenClaw 独立 agent</td></tr>
+  <tr><td>🔍 Reviewer</td><td>审查员/挑战者</td><td>Phase 1: 审查挑战 spec 质量（与 Jarvis 对线）；Phase 2: 对照 spec 审查代码（与 Coder 对线）</td><td>OpenClaw 独立 agent</td></tr>
+</table>
+
+<!-- ==================== 2. 文档驱动开发 ==================== -->
+<h2>2. 文档驱动开发 (Spec-Driven Development)</h2>
+
+<div class="decision">
+  <div class="decision-title">核心原则：文档即源码，代码是编译产物</div>
+  <div class="decision-body">
+    代码不对 → <b>不改代码，改文档</b> → Coder 按新文档重新生成代码。<br>
+    文档永远是最新的、唯一可信的 source of truth。<br>
+    <b>No Doc, No Code</b> - 没有文档支撑的代码变更是危险信号。
+  </div>
+</div>
+
+<h3>2.1 文档层次</h3>
+<p class="note">项目文档分三层，从宏观到微观，Coder 写代码时三层叠加参考。</p>
+
+<table>
+  <tr><th>层次</th><th>文件</th><th>内容</th><th>变更频率</th><th>谁写</th></tr>
+  <tr><td>项目级</td><td>PROJECT.md</td><td>项目概述、技术栈、架构设计、模块划分、全局约束</td><td>很少变</td><td>Jarvis 写 + Reviewer 审</td></tr>
+  <tr><td>模块级</td><td>docs/*.md</td><td>每个模块的详细 spec：接口定义、数据模型、算法</td><td>模块开发时</td><td>Jarvis 写 + Reviewer 审</td></tr>
+  <tr><td>任务级</td><td>.blackboard/task.md</td><td>当前具体任务：背景、方案、约束、验收标准</td><td>每个任务换一份</td><td>Jarvis</td></tr>
+  <tr><td>任务清单+进度</td><td>.blackboard/tasks-backlog.md</td><td>所有 task 列表 + 当前任务进度/阻塞（唯一进度 source of truth）</td><td>随任务推进更新</td><td>Jarvis 管结构；Coder 只更新当前 task 状态</td></tr>
+</table>
+
+<h3>2.2 两阶段流程</h3>
+
+<div class="decision">
+  <div class="decision-title">Phase 1: Spec 撰写与对线（一次性，项目/模块级别）</div>
+  <div class="decision-body">
+    Jarvis 写 spec → Reviewer 审查挑战 spec → 来回对线（≤3 轮，超过则 Guodong 仲裁）→ 双方通过 → Guodong sign-off。<br>
+    <b>目的</b>：在 Coder 动手之前，确保 spec 质量。Reviewer 在这个阶段深度理解 spec 的每个细节。<br><br>
+    <b>Phase 1 产物：</b><br>
+    - <code>PROJECT.md</code> - 项目概述、技术栈、架构设计、全局约束<br>
+    - <code>docs/*.md</code> - 每个模块的详细 spec（接口定义、数据模型、算法）<br>
+    - <code>.blackboard/tasks-backlog.md</code> - 任务列表 + 依赖关系 + 优先级排序<br>
+    - <code>.blackboard/spec-review.md</code> - Reviewer 的 spec 审查记录（对线过程和最终结论）<br><br>
+    前三个由 Jarvis 撰写，第四个由 Reviewer 撰写。全部经过 Reviewer 审查 + Guodong sign-off 后，作为 Phase 2 的输入。
+  </div>
+</div>
+
+<p class="note">
+  <b>📌 "spec" 的定义：</b>本文档中所有提到"对照 spec"、"已通过的 spec"，指的是 Phase 1 产出的 <code>PROJECT.md</code> + <code>docs/*.md</code>。<code>spec-review.md</code> 是审查过程记录，不是 spec 本身。
+</p>
+
+<div class="decision">
+  <div class="decision-title">Phase 2: 逐任务实施（循环，每个 task）</div>
+  <div class="decision-body">
+    Jarvis 派发 task → Coder 写代码 → Reviewer 审查代码（对照已通过的 spec）。<br>
+    <b>优势</b>：Reviewer 在 Phase 1 已经跟 spec 打过架，Phase 2 review 代码更快更准。
+  </div>
+</div>
+
+<p class="note"><b>Phase 1: Spec 撰写与对线（一次性）</b></p>
+<div class="mermaid">
+graph TD
+    G["👤 Guodong<br>提出需求意图"] --> J1["⚡ Jarvis<br>撰写 spec<br>PROJECT.md + docs/*.md"]
+    J1 --> R1["🔍 Reviewer<br>审查 spec"]
+    R1 -->|"spec 有问题 ≤3轮"| J1
+    R1 -->|"3轮未过"| ARB["👤 Guodong 仲裁"]
+    ARB --> J1
+    R1 -->|"spec 通过"| SIGN{"👤 Guodong<br>Sign-off?"}
+    SIGN -->|"不对"| J1
+    SIGN -->|"确认"| P2["进入 Phase 2"]
+
+    style G fill:#8b5cf6,stroke:#a78bfa,color:#fff
+    style J1 fill:#f0883e,stroke:#f0883e,color:#fff
+    style R1 fill:#da3633,stroke:#f85149,color:#fff
+    style SIGN fill:#8b5cf6,stroke:#a78bfa,color:#fff
+    style ARB fill:#8b5cf6,stroke:#a78bfa,color:#fff
+    style P2 fill:#58a6ff,stroke:#58a6ff,color:#fff
+</div>
+
+<p class="note"><b>Phase 2: 逐任务实施（循环）</b></p>
+<div class="mermaid">
+graph TD
+    SPLIT["⚡ Jarvis<br>写 task.md"] --> C["💻 Coder<br>按 task.md 写代码"]
+    C --> R2["🔍 Reviewer<br>对照 spec 审查代码"]
+    R2 -->|"代码偏离 spec ≤3轮"| C
+    R2 -->|"3轮未过"| ESC["👤 Guodong 仲裁"]
+    ESC --> C
+    R2 -->|"通过"| COMMIT["📌 git commit"]
+    COMMIT --> RETRO["🔄 SOP 复盘"]
+    RETRO --> NEXT{"下一个 task?"}
+    NEXT -->|"Yes"| SPLIT
+    NEXT -->|"No"| DONE["🎉 全部完成"]
+
+    style SPLIT fill:#f0883e,stroke:#f0883e,color:#fff
+    style C fill:#238636,stroke:#3fb950,color:#fff
+    style R2 fill:#da3633,stroke:#f85149,color:#fff
+    style ESC fill:#8b5cf6,stroke:#a78bfa,color:#fff
+    style COMMIT fill:#238636,stroke:#3fb950,color:#fff
+    style RETRO fill:#8b5cf6,stroke:#a78bfa,color:#fff
+    style DONE fill:#8b5cf6,stroke:#a78bfa,color:#fff
+</div>
+
+<h3>Phase 2 中修改 spec（例外流程）</h3>
+<div class="decision">
+  <div class="decision-body">
+    <b>谁能发起？</b><br>
+    - <b>Coder</b>：写代码时发现 spec 有矛盾、缺定义、或现实中不可行<br>
+    - <b>Reviewer</b>：review 代码时发现 spec 本身有歧义导致 Coder 猜测<br><br>
+    <b>谁来改？</b><br>
+    - Coder 和 Reviewer 都<b>不能自己改 spec</b>，只能报告给 Jarvis<br>
+    - Jarvis 修改后，必须走一次 <b>mini Phase 1</b>：Reviewer 再审 → 通过后才继续<br>
+    - 这保证了 spec 始终是双方签字的契约，不会被单方面篡改
+  </div>
+</div>
+
+<div class="mermaid">
+graph LR
+    CR["💻 Coder 或 🔍 Reviewer<br>发现 spec 问题<br>报告给 Jarvis"] --> J2["⚡ Jarvis 改 spec"]
+    J2 --> R3["🔍 Reviewer 再审 spec<br>mini Phase 1"]
+    R3 -->|"通过 ✅"| BACK["回到正常 Phase 2"]
+    R3 -->|"不通过"| J2
+
+    style CR fill:#9e6a03,stroke:#d29922,color:#fff
+    style J2 fill:#f0883e,stroke:#f0883e,color:#fff
+    style R3 fill:#da3633,stroke:#f85149,color:#fff
+    style BACK fill:#58a6ff,stroke:#58a6ff,color:#fff
+</div>
+
+<h3>2.3 Task Spec 模板</h3>
+<div class="file-tree">
+  <span class="comment"># 任务标题</span><br>
+  <span class="comment">## 背景与目标</span> <span class="comment">（Why - 为什么做这个）</span><br>
+  <span class="comment">## 实施步骤</span> <span class="comment">（How - 改哪些文件、按什么顺序、具体做法。接口/算法定义在 docs/*.md，此处不重复）</span><br>
+  <span class="comment">## 约束条件</span> <span class="comment">（不许做什么、边界在哪）</span><br>
+  <span class="comment">## 验收标准</span> <span class="comment">（怎么算完 - 测试用例、预期输出）</span><br>
+  <span class="comment">## 依赖与风险</span><br>
+</div>
+
+<h3>2.4 目录结构</h3>
+
+<div class="file-tree">
+  <span class="comment"># Agent 的"家" - 不随项目变</span><br><br>
+  <span class="dir">~/.openclaw/agents/coder/</span><br>
+  <div class="indent">
+    <span class="file">SOUL.md</span> <span class="comment"># 通用人格定义（核心身份、行为准则）</span><br>
+    <span class="file">MEMORY.md</span> <span class="comment"># 长期记忆</span><br>
+    <span class="dir">memory/</span> <span class="comment"># 日常记录</span><br>
+  </div>
+  <br>
+  <span class="dir">~/.openclaw/agents/reviewer/</span><br>
+  <div class="indent">
+    <span class="file">SOUL.md</span> <span class="comment"># 通用人格定义</span><br>
+    <span class="file">MEMORY.md</span><br>
+    <span class="dir">memory/</span><br>
+  </div>
+  <br>
+  <span class="comment"># 项目目录 - 换项目换这里</span><br><br>
+  <span class="dir">~/projects/&lt;project-name&gt;/</span><br>
+  <div class="indent">
+    <span class="file">PROJECT.md</span> <span class="comment"># 项目级：概述、技术栈、架构、全局约束</span><br>
+    <span class="dir">.blackboard/</span> <span class="comment"># 共享黑板</span><br>
+    <div class="indent">
+      <span class="file">tasks-backlog.md</span> <span class="comment"># 任务列表 + 当前进度（唯一进度 source of truth）</span><br>
+      <span class="file">task.md</span> <span class="comment"># 当前任务 spec</span><br>
+      <span class="file">spec-review.md</span> <span class="comment"># Phase 1 spec 审查记录</span><br>
+      <span class="file">review.md</span> <span class="comment"># Phase 2 代码审查意见（按轮次追加）</span><br>
+      <span class="file">decisions.md</span> <span class="comment"># 设计决策累积</span><br>
+      <span class="file">changelog.md</span> <span class="comment"># 变更日志</span><br>
+      <span class="file">retro.md</span> <span class="comment"># 复盘记录</span><br>
+      <span class="dir">archive/</span> <span class="comment"># 对话归档（按日期+任务名）</span><br>
+    </div>
+    <span class="dir">docs/</span> <span class="comment"># 模块级 spec</span><br>
+    <div class="indent">
+      <span class="file">data-module.md</span><br>
+      <span class="file">strategy-module.md</span><br>
+      <span class="file">api-spec.md</span><br>
+    </div>
+    <span class="dir">src/</span> <span class="comment"># 源代码（编译产物）</span><br>
+    <span class="dir">tests/</span> <span class="comment"># 测试代码</span><br>
+  </div>
+</div>
+
+<p class="note">
+  <b>换项目</b> = 换项目目录。Agent 的 SOUL.md 不变，只换 PROJECT.md + docs/ + .blackboard/。
+</p>
+
+<h3>2.5 Reviewer 的双重职责</h3>
+<div class="decision">
+  <div class="decision-body">
+    Reviewer 不只看代码质量，还要<b>对照 spec 文档检查</b>：<br>
+    1. 代码是否忠实实现了 spec？<br>
+    2. 有没有 spec 没提到但 Coder 自作主张加的东西？<br>
+    3. 如果 spec 本身有歧义或遗漏，标注出来让 Jarvis 修 spec。
+  </div>
+</div>
+
+<h3>2.6 对抗"代码催眠" (Code Hypnosis)</h3>
+<div class="decision">
+  <div class="decision-body">
+    AI 高速生成大量代码时，Reviewer（包括人类）容易陷入<b>"代码催眠"</b>状态 - 看着代码流淌觉得都对，实际已失去批判性思维。<br><br>
+    <b>强制抽离规则：</b><br>
+    - Reviewer 不能顺着代码流逐行看，必须<b>对照 spec 逐项检查</b>（先读 spec，再找对应代码）<br>
+    - 发现自己连续 3 个函数都觉得"没问题"时，强制暂停，重新阅读 spec 约束条件<br>
+    - Review 时必须产出结构化 review.md，不能只说"LGTM"
+  </div>
+</div>
+
+<h3>2.7 模型接力 (Model Relay)</h3>
+<div class="decision">
+  <div class="decision-body">
+    用<b>不同模型交叉工作</b>，减少单一模型的盲区和幻觉：<br><br>
+    <b>推荐模式：</b><br>
+    - Coder 和 Reviewer 可以配置<b>不同的 LLM model</b><br>
+    - 模型 A 写方案/代码 → 模型 B 审方案/代码 → 交叉验证<br>
+    - 同一个模型容易对自己的输出"宽容"，不同模型交叉能发现更多问题<br><br>
+    <b>解决 Reviewer 跨阶段利益冲突：</b><br>
+    Reviewer 在 Phase 1 co-approved spec，Phase 2 又要基于同一份 spec 审代码。如果 Phase 2 中发现 spec 有缺陷，等于承认自己 Phase 1 审漏了 - 人或 AI 都有"沉没成本"倾向，会倾向于维护自己签过字的东西。<br><br>
+    <b>对策：干净 session + 记忆隔离</b><br>
+    - Phase 2 触发 Reviewer 时使用<b>干净 session</b>（不带 Phase 1 对话历史），Reviewer 只看磁盘上的 spec 文件 + 代码<br>
+    - <b>Reviewer MEMORY.md 不记录 spec 审查结论</b>（如"我审过模块 X 的 spec，没问题"），只记录通用教训（如"接口定义要检查空值边界"）。否则记忆会泄漏 Phase 1 上下文，干净 session 形同虚设<br>
+    - 可选加强：Phase 1 和 Phase 2 使用不同 model，进一步消除偏差<br><br>
+    <b>实施：</b>在 OpenClaw agent config 中，coder 和 reviewer 分别设置 model 字段。每次 review 请求作为独立 session 发送。
+  </div>
+</div>
+
+<h3>2.8 对话归档 (Session Archive)</h3>
+<div class="decision">
+  <div class="decision-body">
+    每轮 Coder↔Reviewer 的交互记录必须可追溯，解决"死无对证"问题。<br><br>
+    <b>归档内容：</b><br>
+    - Coder 收到的 task.md 版本<br>
+    - Reviewer 的每轮 review.md<br>
+    - 关键对话上下文（为什么这样改、为什么打回）<br><br>
+    <b>归档位置：</b><code>.blackboard/archive/</code> 按日期+任务名归档<br>
+    <b>用途：</b>出问题时可以"还原现场"，把当时的 context 重新喂给模型修复，不用从零猜测
+  </div>
+</div>
+
+<!-- ==================== 3. 通信机制 ==================== -->
+<h2>3. 通信机制</h2>
+
+<div class="decision">
+  <div class="decision-title">混合通信：消息传递 + 共享黑板</div>
+  <div class="decision-body">
+    <b>消息传递</b> = 拍肩膀（通知、触发、简短指令）<br>
+    <b>共享黑板</b> = 办公桌上的文件夹（结构化数据交换、状态同步）
+  </div>
+</div>
+
+<h3>3.1 消息传递</h3>
+<p class="note">
+  通过 <code>openclaw agent --agent &lt;name&gt; --message "..."</code> 互发消息。<br>
+  用途：通知（"代码写好了"）、简短指令（"请 review src/data.py"）、升级（"3 轮没过，请老板定夺"）。
+</p>
+
+<h3>3.2 共享黑板</h3>
+<div class="file-tree">
+  <span class="dir">&lt;project&gt;/.blackboard/</span><br>
+  <div class="indent">
+    <span class="file">tasks-backlog.md</span> <span class="comment"># 任务列表 + 当前进度/阻塞（唯一进度 source of truth）</span><br>
+    <span class="file">task.md</span> <span class="comment"># 当前任务 spec（完成后替换为下一个）</span><br>
+    <span class="file">spec-review.md</span> <span class="comment"># Phase 1 spec 审查记录</span><br>
+    <span class="file">review.md</span> <span class="comment"># Phase 2 代码审查意见（按轮次追加，不覆盖历史）</span><br>
+    <span class="file">decisions.md</span> <span class="comment"># 设计决策累积记录</span><br>
+    <span class="file">changelog.md</span> <span class="comment"># 变更日志（谁 → 为什么 → 做了什么）</span><br>
+    <span class="file">retro.md</span> <span class="comment"># 复盘记录</span><br>
+  </div>
+</div>
+
+<h3>3.3 通信时序</h3>
+<div class="mermaid">
+sequenceDiagram
+    participant G as 👤 Guodong
+    participant J as ⚡ Jarvis
+    participant C as 💻 Coder
+    participant BB as 📋 黑板
+    participant R as 🔍 Reviewer
+
+    Note over G,R: ── Phase 1: Spec 撰写与对线 ──
+    G->>J: 需求描述
+    J->>BB: 写 PROJECT.md + docs/*.md
+    J->>R: 消息："请审查 spec"
+    R->>BB: 读 spec，写 review 意见
+    R->>J: 消息："spec 有问题，看 review"
+    J->>BB: 改 spec（≤3 轮）
+    R->>J: 消息："spec 通过 ✅"
+    J->>G: 请 sign-off（已过 Reviewer 审查）
+    G->>J: ✅ 确认
+    Note over G,R: ── Phase 2: 逐任务实施 ──
+    J->>BB: 拆分 task，写 task.md
+    J->>C: 消息："新任务，看 task.md"
+    C->>BB: 读 PROJECT.md + docs/*.md + task.md
+    C->>C: 写代码 + 测试
+    C->>BB: 更新 tasks-backlog.md + changelog.md
+    C->>R: 消息："请 review"
+    R->>BB: 读 spec 文档 + 代码
+    R->>BB: 写 review.md（审查意见）
+    R->>C: 消息："有问题，看 review.md"
+    C->>BB: 读 review.md
+    C->>C: 修改代码
+    C->>R: 消息："已修复，请再看"
+    R->>BB: 更新 review.md（"通过 ✅"）
+    R->>J: 消息："review 通过"
+    J->>G: 汇报进展
+</div>
+
+<!-- ==================== 4. 开发流程 ==================== -->
+<h2>4. 开发流程</h2>
+
+<div class="mermaid">
+graph LR
+    D1["📋 Jarvis<br>写 task.md<br>更新 tasks-backlog.md"] --> D2["💻 Coder<br>读 task.md + docs/*.md<br>写代码 + 测试"]
+    D2 -->|"更新 tasks-backlog.md<br>写 changelog.md"| D3["🔍 Reviewer<br>读 task.md + 代码<br>写 review.md"]
+    D3 -->|"review.md: 有问题<br>≤3 轮"| D2
+    D3 -->|"3 轮未过"| D5["👤 Guodong<br>老板拍板<br>写 decisions.md"]
+    D5 --> D2
+    D3 -->|"通过 ✅"| D4["📌 git commit<br>更新 changelog.md"]
+    D4 --> D6["🔄 SOP 复盘<br>写 retro.md"]
+    D6 --> D1
+
+    style D1 fill:#f0883e,stroke:#f0883e,color:#fff
+    style D2 fill:#238636,stroke:#3fb950,color:#fff
+    style D3 fill:#da3633,stroke:#f85149,color:#fff
+    style D4 fill:#238636,stroke:#3fb950,color:#fff
+    style D5 fill:#8b5cf6,stroke:#a78bfa,color:#fff
+    style D6 fill:#8b5cf6,stroke:#a78bfa,color:#fff
+</div>
+
+<div class="decision">
+  <div class="decision-title">谁执行 git commit？</div>
+  <div class="decision-body">Coder 在 Reviewer 通过后执行 git commit。Reviewer 在 review.md 最后一轮记录 reviewed commit hash / diff range。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">防死循环：最多 3 轮 review</div>
+  <div class="decision-body">Coder 和 Reviewer 之间最多打回 3 轮。第 3 轮还没过，升级给 Guodong 决定：强制通过、给额外指导、或让 Jarvis 改 spec。</div>
+</div>
+
+<h3>4.1 复盘与 SOP 进化</h3>
+<p class="note">每个任务 review 通过 + git commit 后，Jarvis 主持复盘，结果写入 <code>.blackboard/retro.md</code>。</p>
+
+<div class="decision">
+  <div class="decision-title">SOUL.md 分区管理</div>
+  <div class="decision-body">
+    每个 agent 的 SOUL.md 分两个区：<br>
+    - <b>Core Principles</b>（核心准则）：稳定，极少变更，定义角色本质<br>
+    - <b>Learned Rules</b>（习得规则）：从复盘中积累，可快速迭代，但需定期修剪防止膨胀<br><br>
+    <b>谁来改 SOUL.md？</b><br>
+    - <b>Coder 和 Reviewer 永远不改自己的 SOUL.md</b>，只能向 Jarvis 提建议<br>
+    - 复盘时 Jarvis 提出修改建议，写入 retro.md<br>
+    - <b>Learned Rules 小改</b>（措辞优化、补充细节）：Jarvis 直接改<br>
+    - <b>Core Principles 或大改</b>：Guodong 审批后 Jarvis 改<br>
+    - <b>大小判断标准</b>：如果这个改动会导致 Coder/Reviewer 在下一个 task 中<b>做法不同</b>（而不只是理解更清楚），就是大改 → Guodong 审批<br>
+    - Guodong 定期 review Learned Rules，修剪过时或过于死板的规则
+  </div>
+</div>
+
+<div class="file-tree">
+  <span class="comment"># .blackboard/retro.md - 复盘记录</span><br><br>
+  <span class="comment">## [2026-03-01] 数据模块</span><br>
+  <span class="comment">### 哪些做得好？</span><br>
+  <span class="comment">- Spec 文档清晰，Coder 一次就理解了接口定义</span><br>
+  <span class="comment">### 哪些出了问题？</span><br>
+  <span class="comment">- Coder 自作主张加了缓存逻辑，spec 没提到</span><br>
+  <span class="comment">- review.md 的格式 Reviewer 没按模板写，Coder 看不懂</span><br>
+  <span class="comment">### 改进动作</span><br>
+  <span class="comment">- → 更新 Coder SOUL.md：加规则"spec 没写的不许加"</span><br>
+  <span class="comment">- → 更新 review.md 模板：加必填字段"问题严重程度"</span><br>
+  <span class="comment">- → 更新 task spec 模板：加"禁止事项"字段</span><br>
+  <span class="comment">---</span><br>
+</div>
+
+<p class="note"><b>复盘三问：</b></p>
+<table>
+  <tr><th>问题</th><th>检查什么</th><th>更新什么</th></tr>
+  <tr><td>1. 哪些做得好？</td><td>流程中顺畅的环节</td><td>保持不动</td></tr>
+  <tr><td>2. 哪些出了问题？</td><td>沟通误解、返工原因、耗时过长的环节</td><td>定位根因</td></tr>
+  <tr><td>3. 改进动作是什么？</td><td>具体改哪个文件的哪条规则</td><td>Jarvis 提出修改建议：<br>- SOUL.md Learned Rules（小改直接改，大改 Guodong 审批）<br>- spec 模板 / review 模板<br>- .blackboard/ 中的流程文件</td></tr>
+</table>
+
+<!-- ==================== 5. 回滚与日志 ==================== -->
+<h2>5. 回滚与日志</h2>
+
+<div class="mermaid">
+graph LR
+    C1["💻 Coder 写完"] --> T1["✅ 测试通过"]
+    T1 --> R1["🔍 Reviewer 通过"]
+    R1 --> G1["📌 git commit<br>稳定点 #1"]
+    G1 --> C2["💻 下一个模块"]
+    C2 --> ERR{"❌ 不可恢复错误?"}
+    ERR -->|Yes| RB["⏪ git revert → 稳定点 #1"]
+    ERR -->|No| T2["继续开发"]
+
+    style G1 fill:#238636,stroke:#3fb950,color:#fff
+    style ERR fill:#da3633,stroke:#f85149,color:#fff
+    style RB fill:#9e6a03,stroke:#d29922,color:#fff
+</div>
+
+<h3>5.1 Changelog 格式</h3>
+<p class="note">每次代码变更必须记录。<b>Based on</b> 字段最关键 - 标注依据哪个文档版本，出问题时能溯源：是"文档改了没同步代码"还是"AI 幻觉"。<br>
+如果 changelog 里出现没有 Based on 的条目，这就是<b>危险信号</b>（No Doc, No Code 原则）。</p>
+<div class="file-tree">
+  <span class="comment">## [2026-03-01 15:30] [Coder]</span><br>
+  <span class="comment">- **Based on**: docs/strategy-module.md v2, .blackboard/task.md "Squeeze 边界修复"</span><br>
+  <span class="comment">- **Why**: Squeeze 释放判断漏掉了首根 K 线的边界情况</span><br>
+  <span class="comment">- **What**: 修改 is_squeeze_buy_point() 加入 shift(1) 检查</span><br>
+  <span class="comment">- **Risk**: 可能影响历史回测结果，需重跑</span><br>
+  <span class="comment">---</span><br>
+</div>
+
+<h3>5.2 Changelog 归档</h3>
+<div class="decision">
+  <div class="decision-body">
+    <b>触发时机</b>：每个 task 完成后的 SOP 复盘环节，Jarvis 检查 changelog.md 大小。<br>
+    <b>操作</b>：超过 200 行（~10KB）时，Jarvis 将旧条目归档到 <code>.blackboard/archive/changelog-YYYY-MM-DD.md</code>，主文件只保留最近的条目。<br>
+    同理适用于其他可能膨胀的黑板文件（retro.md 等）。<br>
+    <b>目的</b>：控制 agent 每次读取的上下文大小，防止 token 爆炸导致"文档断片"。
+  </div>
+</div>
+
+<h3>5.3 "最后 10% 陷阱"</h3>
+<div class="decision">
+  <div class="decision-body">
+    AI 写前 90% 很快，最后 10% 会断崖式变难（边界情况、模块耦合）。<br>
+    进入收尾阶段：<b>每次成功运行就 git commit</b>，随时可回滚。不要等完美才提交。
+  </div>
+</div>
+
+<!-- ==================== 6. 设计决策汇总 ==================== -->
+<h2>6. 设计决策汇总</h2>
+
+<div class="decision">
+  <div class="decision-title">D1: Coder 和 Reviewer 是独立 agent</div>
+  <div class="decision-body">不是 Jarvis 的 sub-agent。各有独立 workspace、Telegram 绑定。Guodong 可直接对话。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D2: SOUL.md 写通用角色，PROJECT.md 写项目信息</div>
+  <div class="decision-body">换项目不用重建 agent，只换项目目录。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D3: 混合通信 - 消息传递 + 共享黑板</div>
+  <div class="decision-body">消息做通知，黑板做结构化数据交换。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D4: 最多 3 轮 review，防止死循环</div>
+  <div class="decision-body">3 轮未过升级给 Guodong。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D5: Agent 是大脑，Python 是手脚</div>
+  <div class="decision-body">计算密集型工作交给代码执行，Agent 只做调度和决策。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D6: Git 做回滚，Changelog 做追溯</div>
+  <div class="decision-body">每模块通过后 git commit（稳定点）。Changelog 格式：谁 → 为什么（重点）→ 做了什么（简略）。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D7: 文档驱动 (Spec-Driven Development)</div>
+  <div class="decision-body">文档是 source of truth，代码是编译产物。No Doc, No Code。三层文档体系：项目级 (PROJECT.md) / 模块级 (docs/*.md) / 任务级 (task.md)。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D8: SOP 自我进化 (RL Lite)</div>
+  <div class="decision-body">每次任务结束验收流程本身，持续改进 SOUL.md / 模板 / checklist。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D9: 警惕"最后 10% 陷阱"</div>
+  <div class="decision-body">收尾阶段高频 git commit，每次成功运行就提交。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D10: 先串行，后并行</div>
+  <div class="decision-body">先串行跑通第一个完整 task，验证流程没问题后，再考虑并行扩展。并行扩展方案见 §7。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">D11: 两阶段模型 - Spec 对线在前，逐任务实施在后</div>
+  <div class="decision-body">
+    Phase 1（一次性）：Jarvis ↔ Reviewer 对线 spec，双方通过后 Guodong sign-off。<br>
+    Phase 2（逐任务）：Jarvis 派发 task → Coder 写代码 → Reviewer 审查代码。<br>
+    Phase 2 中改 spec 必须走 mini Phase 1（Reviewer 再审），Jarvis 不能单方面修改已审通过的 spec。
+  </div>
+</div>
+
+<!-- ==================== 7. 未来扩展 ==================== -->
+<h2>7. 未来扩展：任务并行</h2>
+
+<div class="decision">
+  <div class="decision-title">当前：串行（有意为之）</div>
+  <div class="decision-body">
+    单 task.md 文件 = 单任务槽。1 Coder + 1 Reviewer，串行更可控：changelog 溯源清晰，review 对应关系明确。<br>
+    <b>原则：先串行跑通完整流程，验证没问题后再考虑并行。</b>
+  </div>
+</div>
+
+<h3>7.1 并行扩展方案</h3>
+<p class="note">当 task 之间无依赖时，可并行派发。目录结构改动：</p>
+
+<div class="file-tree">
+  <span class="dir">.blackboard/</span><br>
+  <div class="indent">
+    <span class="file">tasks-backlog.md</span> <span class="comment"># 不变，增加依赖关系标注</span><br>
+    <span class="dir">tasks/</span> <span class="comment"># task.md → tasks/ 目录，多个活跃 task 共存</span><br>
+    <div class="indent">
+      <span class="file">task-001-data.md</span><br>
+      <span class="file">task-002-indicators.md</span><br>
+    </div>
+    <span class="dir">reviews/</span> <span class="comment"># review.md → reviews/ 目录，按 task 对应</span><br>
+    <div class="indent">
+      <span class="file">review-001.md</span><br>
+      <span class="file">review-002.md</span><br>
+    </div>
+    <span class="file">changelog.md</span> <span class="comment"># 不变，按时间线追加，Based on 标注对应 task</span><br>
+  </div>
+</div>
+
+<p class="note">
+  <b>前提条件：</b><br>
+  - tasks-backlog.md 标注 task 间依赖关系，Jarvis 判断哪些可并行<br>
+  - 有依赖的 task（如"指标模块"依赖"数据模块"）仍然串行<br>
+  - changelog.md 的 Based on 字段区分对应哪个 task<br>
+  - 可能需要多个 Coder 实例（OpenClaw 支持同 agent 多实例）
+</p>
+
+<!-- ==================== 8. TODO ==================== -->
+<h2>8. TODO</h2>
+
+<h3>8.1 Coder SOUL.md 要点</h3>
+<div class="decision">
+  <div class="decision-body">
+    <b>== Core Principles（稳定，极少变更）==</b><br><br>
+    <b>核心身份：</b>严格执行 spec 的工程师，不是自由发挥的艺术家<br><br>
+    <b>行为准则：</b><br>
+    - <b>Spec 是法律</b>：只实现 spec 写的东西，spec 没写的不许加<br>
+    - <b>不许猜测</b>：spec 不清楚 → 问 Jarvis，不要自作主张<br>
+    - <b>每个模块必须有单元测试</b>，测试是交付物的一部分（具体框架由 PROJECT.md 定义）<br>
+    - <b>提交 review 时必须附上测试运行的实际输出</b>，不能只说"测试通过了"。Reviewer 可以选择自己重跑验证<br>
+    - <b>写完代码必须更新 changelog.md</b>：Based on（基于哪个 spec 文件+版本）→ 谁 → 为什么（重点）→ 做了什么（简略）→ 风险评估<br>
+    - <b>更新 tasks-backlog.md</b>：仅更新自己当前 task 的状态（进行中/完成/阻塞），不碰其他条目<br>
+    - <b>No Doc, No Code</b>：没有 spec 支撑的代码变更是违规<br><br>
+    <b>编码标准：</b><br>
+    - 业务逻辑必须有中文注释说明"为什么"（Why），不只说"做了什么"（How）<br>
+    - 不允许一次改太多文件，分步骤提交<br>
+    - 不允许拍脑袋造接口<br>
+    - 先跑测试确认通过再通知 Reviewer<br><br>
+    <b>通信协议：</b><br>
+    - 收到任务 → 读 PROJECT.md + docs/*.md + task.md → 开始工作<br>
+    - 完成 → 写 changelog.md + 更新 tasks-backlog.md → 消息通知 Reviewer<br>
+    - 收到 review 打回 → 读 review.md → 修改 → 通知 Reviewer<br>
+    - 3 轮未过 → 消息通知 Jarvis 升级<br><br>
+    <b>禁止事项：</b><br>
+    - 禁止修改 spec 文档（那是 Jarvis 的职责）<br>
+    - 禁止跳过测试<br>
+    - 禁止 changelog 里出现没有 Based on 字段的变更（危险信号）<br>
+    - <b>禁止自己修改 SOUL.md</b>，只能向 Jarvis 提建议<br><br>
+    <b>== Learned Rules（从复盘中积累，Jarvis 维护，Guodong 定期修剪）==</b><br>
+    <span style="color:#484f58">（初始为空，随项目推进由 Jarvis 根据 retro.md 添加）</span>
+  </div>
+</div>
+
+<h3>8.2 Reviewer SOUL.md 要点</h3>
+<div class="decision">
+  <div class="decision-body">
+    <b>== Core Principles（稳定，极少变更）==</b><br><br>
+    <b>核心身份：</b>spec 的守护者 + 代码质量的把关人<br><br>
+    <b>两个阶段，两种审查：</b><br>
+    <b>Phase 1 - Spec Review（跟 Jarvis 对线）：</b><br>
+    - 接口定义完整？边界情况列出？约束条件明确？<br>
+    - 验收标准可测试？（不是"性能要好"，而是"延迟 < 100ms"）<br>
+    - 有无歧义表述？有无遗漏的依赖？<br>
+    - 至少有一个 happy path 示例数据？<br><br>
+    <b>Phase 2 - Code Review（跟 Coder 对线）：</b><br>
+    1. <b>Spec 对齐</b>（权重更高）：代码是否忠实实现了 spec？有无偏离、遗漏、多余？<br>
+    2. <b>代码质量</b>：命名规范、错误处理、边界情况、测试覆盖<br><br>
+    <b>对抗代码催眠：</b><br>
+    - <b>先读 spec，再看代码</b> - 不能先看代码再回忆 spec<br>
+    - 对照 spec 逐项打勾（列出 spec 要点 + 对应代码文件/函数名 + ✅/❌），不能顺着代码流阅读<br>
+    - 连续 3 个函数觉得"没问题"时，强制暂停重读 spec 约束<br>
+    - 必须产出结构化 review.md，禁止只说"LGTM"<br><br>
+    <b>review.md 输出格式（按轮次追加，不覆盖）：</b><br><br>
+    <span style="color:#484f58; font-family:monospace; font-size:12px">
+    ## Round 1 (2026-03-01 16:00)<br>
+    结论：❌ 打回<br>
+    Spec 对齐检查：逐项列出 spec 要求 vs 代码实现<br>
+    问题清单：<br>
+    - 🔴 P1: xxx（必须修）<br>
+    - 🟡 P2: yyy（建议修）<br>
+    Coder 自作主张：spec 没提但加了 zzz<br>
+    Spec 本身问题：§3.2 接口定义有歧义 → 建议 Jarvis 修<br>
+    ---<br>
+    ## Round 2 (2026-03-01 17:30)<br>
+    结论：✅ 通过<br>
+    Round 1 issues：<br>
+    - 🔴 P1: ✅ 已修复<br>
+    - 🟡 P2: ✅ 已修复<br>
+    - Coder 自作主张部分：✅ 已移除<br>
+    </span><br>
+    <b>关键规则：</b>每轮追加新的 Round 区块，不删除/覆盖之前的轮次。Coder 可以快速看到哪些 issue 还 open。<br><br>
+    <b>通信协议：</b><br>
+    - <b>Phase 1</b>：收到 spec review 请求 → 读 spec → 写审查意见 → 通知 Jarvis → 对线≤3轮 → 通过后通知 Jarvis 提交 sign-off<br>
+    - <b>Phase 2</b>：收到 code review 请求 → 读 spec + 代码 → 写 review.md → 通知 Coder<br>
+    - Phase 2 中 Jarvis 改 spec → 必须再过 Reviewer（mini Phase 1）<br>
+    - 任何阶段 3 轮未过 → 通知 Jarvis 升级给 Guodong<br><br>
+    <b>禁止事项：</b><br>
+    - 禁止自己改代码（那是 Coder 的事）<br>
+    - 禁止不写 review.md 就说通过/打回<br>
+    - 禁止 review 只看代码不对照 spec<br>
+    - 禁止在 MEMORY.md 中记录 spec 审查结论（如"模块 X 的 spec 没问题"），只记录通用教训<br>
+    - <b>禁止自己修改 SOUL.md</b>，只能向 Jarvis 提建议<br><br>
+    <b>== Learned Rules（从复盘中积累，Jarvis 维护，Guodong 定期修剪）==</b><br>
+    <span style="color:#484f58">（初始为空，随项目推进由 Jarvis 根据 retro.md 添加）</span>
+  </div>
+</div>
+
+<h3>8.3 待办清单</h3>
+<p class="note">
+  ☐ 将框架中 Jarvis 的职责写进 Jarvis SOUL.md（编排、spec 撰写、SOUL.md 维护等）<br>
+  ☐ 根据 8.1 写 Coder 的 SOUL.md → <code>~/.openclaw/agents/coder/SOUL.md</code><br>
+  ☐ 根据 8.2 写 Reviewer 的 SOUL.md → <code>~/.openclaw/agents/reviewer/SOUL.md</code><br>
+  ☐ 配置 OpenClaw agent（coder、reviewer）<br>
+  ☐ 创建 Telegram 群/topic 绑定<br>
+  ☐ 定义 review.md 结构化模板文件<br>
+  ☐ 为 Coder/Reviewer 配置不同 LLM model（模型接力）<br>
+  ☐ 创建 .blackboard/archive/ 归档机制<br>
+  ☐ 实际跑一个小任务验证完整流程<br>
+</p>
+
+<!-- ==================== Gemini Review ==================== -->
+<h2>附录：Gemini Review 未采纳项</h2>
+<p class="note">
+  2026-03-01，Gemini Pro 对本框架做了一轮完整 review，提出 10 个问题。以下是经 Jarvis 和 Guodong 评估后有意未采纳的建议，记录在此说明理由。
+</p>
+
+<div class="decision">
+  <div class="decision-title">❌ 定义 FILE_BACKLOG 等变量名</div>
+  <div class="decision-body">Gemini 建议在框架中定义文件名变量（如 FILE_BACKLOG="tasks-backlog.md"），方便后续修改。<br><b>不采纳理由</b>：过度工程。文件名在文档中出现次数有限，直接写死比引入间接层更清晰。如果真要改文件名，全局搜索替换即可。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">❌ 自动触发指标（如 Coder 修改 >N 行自动触发 review）</div>
+  <div class="decision-body">Gemini 建议设定量化阈值自动触发流程步骤。<br><b>不采纳理由</b>：当前是串行流程，每个 task 必经 review，不需要自动触发机制。量化阈值在没有实践数据前只是拍脑袋数字，等跑过几轮再考虑。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">❌ Lock 文件机制（防止并发修改黑板文件）</div>
+  <div class="decision-body">Gemini 建议为 .blackboard/ 文件加锁机制，防止 Coder 和 Reviewer 同时写入。<br><b>不采纳理由</b>：D10 决定先串行，串行流程中同一时刻只有一个 Agent 操作，不存在并发冲突。并行阶段再引入。</div>
+</div>
+
+<div class="decision">
+  <div class="decision-title">❌ Memory 污染防护 Prompt</div>
+  <div class="decision-body">Gemini 建议在 Reviewer 的 system prompt 中显式写入"不要在 MEMORY.md 中记录 spec 结论"。<br><b>不采纳理由</b>：SOUL.md 禁止列表中已包含这条规则（§8.2）。在 system prompt 中重复写一遍是冗余，且 SOUL.md 本身就是 system prompt 的一部分。</div>
+</div>
+
+<p class="note" style="margin-top: 24px;">
+  <b>总结</b>：AI reviewer 倾向于穷举所有可能的边界情况并建议全部处理，但不是每个问题都值得现在解决。框架设计需要克制 - 解决当下的问题，预留未来的空间，不要试图一次搞定所有事。
+</p>
+
+<!-- ==================== Changelog ==================== -->
+<h2>Changelog</h2>
+<div class="file-tree">
+  <span class="comment">## [2026-03-01 16:10 SGT] [Jarvis]</span><br>
+  <span class="comment">- **Based on**: Guodong 与另一 LLM 讨论 + 无岳文章 §4 SDD 流程</span><br>
+  <span class="comment">- **Why**: Spec 质量无检查（garbage-in garbage-out），需在 Coder 动手前拦住坏 spec</span><br>
+  <span class="comment">- **What**: 重构为两阶段模型：Phase 1 Jarvis↔Reviewer 对线 spec（一次性）→ Phase 2 逐任务实施。Phase 2 改 spec 须走 mini Phase 1。新增 D11。更新角色表、时序图、Reviewer SOUL.md 要点。</span><br>
+  <span class="comment">---</span><br>
+  <span class="comment">## [2026-03-01 15:35 SGT] [Jarvis]</span><br>
+  <span class="comment">- **Based on**: Guodong review feedback - 任务串行限制</span><br>
+  <span class="comment">- **Why**: 当前框架只支持串行，需明确这是有意设计并预留并行扩展路径</span><br>
+  <span class="comment">- **What**: 新增 §7 未来扩展（并行方案：tasks/ + reviews/ 目录），TODO 章节号调整为 §8</span><br>
+  <span class="comment">---</span><br>
+  <span class="comment">## [2026-03-01 15:30 SGT] [Jarvis]</span><br>
+  <span class="comment">- **Based on**: Guodong review feedback - status.md 与 tasks-backlog.md 职责重叠</span><br>
+  <span class="comment">- **Why**: 两个文件追踪重叠状态，必然 out of sync，无法确定 source of truth</span><br>
+  <span class="comment">- **What**: 砍掉 status.md，进度信息合并进 tasks-backlog.md（Current + Backlog 格式）</span><br>
+  <span class="comment">---</span><br>
+  <span class="comment">## [2026-03-01 15:28 SGT] [Jarvis]</span><br>
+  <span class="comment">- **Based on**: 无岳文章 §5.2 "Code follows Doc" 原则</span><br>
+  <span class="comment">- **Why**: Changelog 缺少文档溯源字段，无法区分"文档没同步"和"AI 幻觉"</span><br>
+  <span class="comment">- **What**: Changelog 格式新增 Based on 字段（基于哪个 spec 文件+版本）</span><br>
+  <span class="comment">---</span><br>
+  <span class="comment">## [2026-03-01 15:26 SGT] [Jarvis]</span><br>
+  <span class="comment">- **Based on**: 无岳文章 §3.4 RL Lite, §5 最后10%陷阱</span><br>
+  <span class="comment">- **Why**: Guodong 审阅后要求补充三个要点，并展开 SOUL.md 细节</span><br>
+  <span class="comment">- **What**: </span><br>
+  <span class="comment">  - 新增 §2.6 代码催眠 (Code Hypnosis) 对策</span><br>
+  <span class="comment">  - 新增 §2.7 模型接力 (Model Relay) 机制</span><br>
+  <span class="comment">  - 新增 §2.8 对话归档 (Session Archive)</span><br>
+  <span class="comment">  - 扩展 §7.1 Coder SOUL.md 详细要点</span><br>
+  <span class="comment">  - 扩展 §7.2 Reviewer SOUL.md 详细要点</span><br>
+  <span class="comment">  - 目录结构增加 archive/ 目录</span><br>
+  <span class="comment">- **参考**: 阿里无岳《从传统编程转向大模型编程》</span><br>
+  <span class="comment">---</span><br>
+  <span class="comment">## [2026-03-01 14:00 SGT] [Jarvis]</span><br>
+  <span class="comment">- **Why**: 从头重写，章节编号混乱需要重整</span><br>
+  <span class="comment">- **What**: 完整重写文档，9 章 → 7 章（合并精简），编号从头排</span><br>
+  <span class="comment">---</span><br>
+</div>
+
+</body>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: '#161b22',
+      primaryColor: '#238636',
+      primaryTextColor: '#c9d1d9',
+      lineColor: '#30363d',
+      fontSize: '13px'
+    }
+  });
+</script>
+</html>
