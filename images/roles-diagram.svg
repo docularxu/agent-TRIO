@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="480" viewBox="0 0 600 480">
+  <rect width="600" height="480" fill="#0d1117" rx="12"/>
+
+  <!-- Title -->
+  <text x="300" y="32" text-anchor="middle" fill="#58a6ff" font-size="17" font-weight="bold" font-family="sans-serif">Role Interaction</text>
+
+  <!-- Boss -->
+  <rect x="220" y="55" width="160" height="58" rx="10" fill="#8b5cf6"/>
+  <text x="300" y="80" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold" font-family="sans-serif">Boss (Human)</text>
+  <text x="300" y="98" text-anchor="middle" fill="#e0d0ff" font-size="10" font-family="sans-serif">Requirements, Sign-off, Decisions</text>
+
+  <!-- Architect -->
+  <rect x="30" y="200" width="180" height="58" rx="10" fill="#f0883e"/>
+  <text x="120" y="225" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold" font-family="sans-serif">Architect</text>
+  <text x="120" y="243" text-anchor="middle" fill="#ffe0c0" font-size="10" font-family="sans-serif">Writes specs, orchestrates tasks</text>
+
+  <!-- Coder -->
+  <rect x="390" y="200" width="180" height="58" rx="10" fill="#238636"/>
+  <text x="480" y="225" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold" font-family="sans-serif">Coder</text>
+  <text x="480" y="243" text-anchor="middle" fill="#c0ffc0" font-size="10" font-family="sans-serif">Implements code per spec</text>
+
+  <!-- Reviewer -->
+  <rect x="220" y="365" width="160" height="58" rx="10" fill="#da3633"/>
+  <text x="300" y="390" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold" font-family="sans-serif">Reviewer</text>
+  <text x="300" y="408" text-anchor="middle" fill="#ffc0c0" font-size="10" font-family="sans-serif">P1: Spec audit / P2: Code audit</text>
+
+  <!-- Arrowhead defs -->
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#8b949e"/></marker>
+    <marker id="ahR" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto"><polygon points="8 0, 0 3, 8 6" fill="#8b949e"/></marker>
+  </defs>
+
+  <!-- Boss <-> Architect (solid) -->
+  <line x1="248" y1="113" x2="168" y2="200" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ah)" marker-start="url(#ahR)"/>
+  <text x="178" y="156" fill="#c9d1d9" font-size="9" font-family="sans-serif" transform="rotate(-30 178 156)">direct dialog</text>
+
+  <!-- Boss <-> Coder (dashed) -->
+  <line x1="352" y1="113" x2="432" y2="200" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ah)" marker-start="url(#ahR)"/>
+  <text x="416" y="152" fill="#8b949e" font-size="9" font-family="sans-serif" transform="rotate(30 416 152)">can talk directly</text>
+
+  <!-- Boss <-> Reviewer (dashed) -->
+  <line x1="280" y1="113" x2="280" y2="365" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ah)" marker-start="url(#ahR)"/>
+  <text x="268" y="245" fill="#8b949e" font-size="9" font-family="sans-serif" writing-mode="tb">can talk directly</text>
+
+  <!-- Architect -> Coder -->
+  <line x1="210" y1="229" x2="390" y2="229" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text x="300" y="220" text-anchor="middle" fill="#c9d1d9" font-size="9" font-family="sans-serif">writes spec</text>
+
+  <!-- Architect -> Reviewer -->
+  <line x1="120" y1="258" x2="238" y2="365" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text x="146" y="318" fill="#c9d1d9" font-size="9" font-family="sans-serif" transform="rotate(42 146 318)">triggers review</text>
+
+  <!-- Coder <-> Reviewer -->
+  <line x1="480" y1="258" x2="362" y2="365" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ah)" marker-start="url(#ahR)"/>
+  <text x="448" y="318" fill="#c9d1d9" font-size="9" font-family="sans-serif" transform="rotate(-42 448 318)">code / review</text>
+
+  <!-- Legend -->
+  <line x1="30" y1="458" x2="60" y2="458" stroke="#8b949e" stroke-width="1.5"/>
+  <text x="68" y="462" fill="#8b949e" font-size="9" font-family="sans-serif">primary flow</text>
+  <line x1="200" y1="458" x2="230" y2="458" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="238" y="462" fill="#8b949e" font-size="9" font-family="sans-serif">escalation / override</text>
+</svg>

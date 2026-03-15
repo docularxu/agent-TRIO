@@ -1,0 +1,144 @@
+# OpenClaw Agent Configuration Example
+# agent-TRIO: Multi-Agent Development Framework
+#
+# Add these entries to your ~/.openclaw/openclaw.json
+# Adjust workspace paths and model choices to match your setup.
+#
+# openclaw.json is JSON5 (trailing commas OK).
+
+# ─────────────────────────────────────────────
+# 1. Agent definitions (under "agents.list")
+# ─────────────────────────────────────────────
+#
+# {
+#   "agents": {
+#     "list": [
+#       ... your existing agents ...
+#
+#       {
+#         "id": "architect",
+#         "name": "Architect",
+#         "workspace": "~/.openclaw/agents/architect",
+#         "model": {
+#           "primary": "anthropic/claude-opus-4-6",
+#           "fallbacks": ["anthropic/claude-sonnet-4-5"]
+#         },
+#         "identity": {
+#           "name": "Architect",
+#           "emoji": "⚡"
+#         },
+#         "subagents": {
+#           "allowAgents": ["coder", "reviewer"]
+#         }
+#       },
+#       {
+#         "id": "coder",
+#         "name": "Coder",
+#         "workspace": "~/.openclaw/agents/coder",
+#         "model": {
+#           "primary": "anthropic/claude-sonnet-4-5",
+#           "fallbacks": ["google/gemini-2.5-flash"]
+#         },
+#         "identity": {
+#           "name": "Coder",
+#           "emoji": "💻"
+#         }
+#       },
+#       {
+#         "id": "reviewer",
+#         "name": "Reviewer",
+#         "workspace": "~/.openclaw/agents/reviewer",
+#         "model": {
+#           "primary": "google/gemini-2.5-pro",
+#           "fallbacks": ["anthropic/claude-sonnet-4-5"]
+#         },
+#         "identity": {
+#           "name": "Reviewer",
+#           "emoji": "🔍"
+#         }
+#       }
+#     ]
+#   }
+# }
+#
+# NOTE: "subagents.allowAgents" on Architect lets it spawn Coder and
+# Reviewer as sub-agents. Without this, Architect can only see itself
+# when calling agents_list.
+#
+# TIP: Use different models for Coder and Reviewer for cross-model
+# verification. The example above uses Claude for coding, Gemini for
+# review - adjust to your preference and budget.
+
+# ─────────────────────────────────────────────
+# 2. Agent-to-Agent Communication
+# ─────────────────────────────────────────────
+#
+# Communication methods:
+#
+#   a) sessions_spawn - spawn another agent as a sub-agent with a task
+#      Used for: delegating coding tasks, triggering reviews
+#      Requires: "subagents.allowAgents" on the calling agent
+#
+#   b) sessions_send  - direct message to another agent's session
+#      Used for: notifications, status updates
+#
+# Communication flow:
+#   architect → coder     (spawn: assign coding task)
+#   architect → reviewer  (spawn: trigger spec/code review)
+#   coder     → reviewer  (send: notify code ready for review)
+#   reviewer  → coder     (send: review feedback)
+#
+# CLI equivalent:
+#   openclaw agent --agent coder --message "New task at ~/my-project/, see .blackboard/task.md"
+
+# ─────────────────────────────────────────────
+# 3. Tool Permissions (Design Intent)
+# ─────────────────────────────────────────────
+#
+# By default, OpenClaw agents get standard tool access (read, write, exec).
+# The framework's SOUL.md files enforce behavioral constraints:
+#
+# Architect:
+#   - read/write: PROJECT.md, docs/*.md, .blackboard/ files
+#   - sessions_spawn: orchestrate Coder and Reviewer
+#   - SOUL.md forbids: writing code directly (that's Coder's job)
+#
+# Coder:
+#   - read: PROJECT.md, docs/*.md, .blackboard/task.md
+#   - write: source code, tests, changelog.md, tasks-backlog.md (own task status only)
+#   - exec: build, test commands
+#   - SOUL.md forbids: modifying spec docs, self-modifying SOUL.md
+#
+# Reviewer:
+#   - read: spec docs, source code, task.md
+#   - write: review.md, spec-review.md
+#   - SOUL.md forbids: modifying code (that's Coder's job), self-modifying SOUL.md
+
+# ─────────────────────────────────────────────
+# 4. Workspace Layout
+# ─────────────────────────────────────────────
+#
+# Each agent's workspace contains their SOUL.md and MEMORY.md:
+#
+#   ~/.openclaw/agents/architect/
+#     ├── SOUL.md        # Copy from agents/architect/SOUL.md in this repo
+#     ├── MEMORY.md      # Cross-project lessons (auto-accumulated)
+#     └── memory/        # Daily logs
+#
+# The project workspace is separate (not inside any agent dir):
+#
+#   ~/projects/<project-name>/
+#     ├── PROJECT.md         # Project overview, tech stack, constraints
+#     ├── docs/              # Module-level specs
+#     └── .blackboard/       # Shared coordination space
+#         ├── tasks-backlog.md
+#         ├── task.md
+#         ├── spec-review.md
+#         ├── review.md
+#         ├── changelog.md
+#         ├── decisions.md
+#         ├── retro.md
+#         └── archive/
+#
+# All agents access the same project directory. Agent identity persists
+# across projects; project directories are swappable.
