@@ -120,7 +120,7 @@ For each task: Architect writes `task.md` → Coder implements → Reviewer audi
 
 ## Two-Phase Workflow
 
-![Two-Phase Development Flow](images/phase-diagram.png)
+![Two-Phase Development Flow](https://github.com/user-attachments/assets/aea6d618-2395-4a86-a618-59f0345a376d)
 
 | Phase | Input | Output | Gate |
 |-------|-------|--------|------|
@@ -153,7 +153,7 @@ agent-trio/
 
 ## Role Interaction
 
-![Role Interaction Diagram](images/roles-diagram.png)
+![Role Interaction Diagram](https://github.com/user-attachments/assets/08fefb51-795f-4bf2-ba15-b7ff5859eebe)
 
 ## 💡 Experience Accumulation
 
