@@ -6,6 +6,20 @@ A multi-agent software development framework built on one principle: **No Doc, N
 
 Three AI agents - **Architect**, **Coder**, and **Reviewer** - collaborate through a structured two-phase workflow to deliver production-quality code. The spec documents serve as the contract between phases: Architect writes them, Reviewer challenges them, and Coder implements strictly against them.
 
+## Table of Contents
+
+- [Core Design Principles](#-core-design-principles)
+- [The Agent Team](#-the-agent-team)
+- [Quick Start](#-quick-start)
+- [Two-Phase Workflow](#two-phase-workflow)
+- [Repository Structure](#-repository-structure)
+- [Role Interaction](#role-interaction)
+- [Experience Accumulation](#-experience-accumulation)
+- [Adapting to Other Platforms](#-adapting-to-other-platforms)
+- [Sister Project](#-sister-project)
+- [Origin](#origin)
+- [License](#license)
+
 ## 🌟 Core Design Principles
 
 1. **No Doc, No Code**: Spec is law. Code without spec backing is a red flag. Code wrong? Fix the spec first, then regenerate.
