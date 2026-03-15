@@ -6,6 +6,8 @@ A multi-agent software development framework built on one principle: **No Doc, N
 
 Three AI agents - **Architect**, **Coder**, and **Reviewer** - collaborate through a structured two-phase workflow to deliver production-quality code. The spec documents serve as the contract between phases: Architect writes them, Reviewer challenges them, and Coder implements strictly against them.
 
+Looking for code **analysis** instead of development? Check out [Source-Driven Agent Framework](https://github.com/docularxu/source-driven-agent-framework) - same team structure, but for reverse engineering and architecture analysis. **No Evidence, No Claim** instead of No Doc, No Code.
+
 ## Table of Contents
 
 - [Core Design Principles](#-core-design-principles)
@@ -16,7 +18,6 @@ Three AI agents - **Architect**, **Coder**, and **Reviewer** - collaborate throu
 - [Role Interaction](#role-interaction)
 - [Experience Accumulation](#-experience-accumulation)
 - [Adapting to Other Platforms](#-adapting-to-other-platforms)
-- [Sister Project](#-sister-project)
 - [Origin](#origin)
 - [License](#license)
 
@@ -182,10 +183,6 @@ The framework is designed around OpenClaw but the core ideas are platform-indepe
 - **AutoGen / CrewAI / LangGraph** - Map each SOUL.md to an agent definition; use `.blackboard/` as shared state
 
 The key requirements: isolated agent sessions, file system access, and inter-agent messaging.
-
-## 🔬 Sister Project
-
-Looking for code **analysis** instead of development? Check out [Source-Driven Agent Framework](https://github.com/docularxu/source-driven-agent-framework) - same team structure, but for reverse engineering and architecture analysis. **No Evidence, No Claim** instead of No Doc, No Code.
 
 ## Origin
 
