@@ -6,7 +6,7 @@ A multi-agent software development framework built on one principle: **No Doc, N
 
 Three AI agents - **Architect**, **Coder**, and **Reviewer** - collaborate through a structured two-phase workflow to deliver production-quality code. The spec documents serve as the contract between phases: Architect writes them, Reviewer challenges them, and Coder implements strictly against them.
 
-Looking for code **analysis** instead of development? Check out [Source-Driven Agent Framework](https://github.com/docularxu/source-driven-agent-framework) - same team structure, but for reverse engineering and architecture analysis. **No Evidence, No Claim** instead of No Doc, No Code.
+Looking for code **analysis** instead of development? Check out [source-TRIO](https://github.com/docularxu/source-TRIO) - a source code analysis framework with the same team structure, but for reverse engineering and architecture analysis. **No Evidence, No Claim** instead of No Doc, No Code.
 
 ## Table of Contents
 
